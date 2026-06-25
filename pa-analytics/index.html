@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PA Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f6f3;--surface:#fff;--surface2:#f0efe9;--border:rgba(0,0,0,.08);--border-strong:rgba(0,0,0,.14);--text:#1a1917;--text-muted:#6b6a65;--text-faint:#a09f9a;--approved:#2d6a4f;--approved-bg:#d8f3dc;--denied:#9d2a2a;--denied-bg:#fde8e8;--pending:#7a5c00;--pending-bg:#fef3cd;--review:#1e4a7a;--review-bg:#dbeafe;--accent:#2563eb;--radius:10px;--radius-sm:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.25rem}
+.sidebar-logo{font-size:15px;font-weight:600;letter-spacing:-.3px;padding:.5rem .75rem;margin-bottom:.75rem}
+.sidebar-logo span{color:var(--accent)}
+.nav-item{display:flex;align-items:center;gap:8px;padding:.55rem .75rem;border-radius:var(--radius-sm);font-size:13px;color:var(--text-muted);cursor:pointer;transition:background .15s,color .15s;border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{background:#eff4ff;color:var(--accent);font-weight:500}
+.nav-icon{font-size:15px;width:18px;text-align:center}
+.sidebar-section{font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;padding:.75rem .75rem .25rem;margin-top:.5rem}
+.file-btn{margin-top:auto;display:flex;align-items:center;gap:8px;padding:.6rem .75rem;border-radius:var(--radius-sm);border:1px solid var(--accent);background:#eff4ff;font-size:12px;color:var(--accent);cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;font-weight:500}
+.file-btn:hover{background:#dbeafe}
+.sync-status{font-size:11px;color:var(--text-faint);padding:.4rem .75rem;word-break:break-all}
+.main{padding:2rem 2.5rem;overflow-x:hidden}
+.page{display:none}.page.active{display:block}
+.page-header{margin-bottom:1.75rem}
+.page-header h1{font-size:22px;font-weight:600;letter-spacing:-.4px}
+.page-header p{font-size:13px;color:var(--text-muted);margin-top:3px}
+/* Drop zone */
+.drop-zone{border:2px dashed var(--border-strong);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:1.5rem}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:#f0f4ff}
+.drop-zone h3{font-size:15px;font-weight:500;margin-bottom:.5rem;color:var(--text)}
+.drop-zone p{font-size:13px;color:var(--text-muted);margin-bottom:1rem}
+.drop-zone .col-hint{font-size:11px;color:var(--text-faint);background:var(--surface2);padding:.5rem .75rem;border-radius:var(--radius-sm);display:inline-block;margin-top:.5rem;line-height:1.8}
+.drop-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
+/* Metrics */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.75rem}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.25rem}
+.metric-label{font-size:11px;font-weight:500;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.metric-value{font-size:28px;font-weight:300;letter-spacing:-1px;font-family:'DM Mono',monospace}
+.metric-sub{font-size:11px;color:var(--text-faint);margin-top:4px}
+.metric.approved .metric-value{color:var(--approved)}
+.metric.denied .metric-value{color:var(--denied)}
+.metric.pending .metric-value{color:var(--pending)}
+/* Filters */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.filters label{font-size:11px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+.filters select,.filters input{font-size:12px;padding:5px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;outline:none;cursor:pointer}
+.filters select:focus,.filters input:focus{border-color:var(--accent)}
+.filters input{width:150px}
+.btn-clear{font-size:12px;color:var(--text-faint);background:none;border:none;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif;margin-left:auto}
+/* Charts */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:1.5rem}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem}
+.chart-title{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+.legend span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+.lsq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* Table */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:1.5rem}
+.table-header{padding:.9rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.table-header h3{font-size:13px;font-weight:600}
+.table-header span{font-size:12px;color:var(--text-faint)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:10.5px;font-weight:600;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg)}
+td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafaf8}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.badge.approved{background:var(--approved-bg);color:var(--approved)}
+.badge.denied{background:var(--denied-bg);color:var(--denied)}
+.badge.pending{background:var(--pending-bg);color:var(--pending)}
+.badge.review{background:var(--review-bg);color:var(--review)}
+.badge.urgent{background:var(--denied-bg);color:var(--denied)}
+.badge.high{background:var(--pending-bg);color:var(--pending)}
+.badge.normal{background:#e8f5e9;color:#2d6a4f}
+.badge.low{background:var(--surface2);color:var(--text-muted)}
+/* AI */
+.ai-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.5rem}
+.ai-header{display:flex;align-items:center;gap:8px;margin-bottom:.75rem}
+.ai-header h3{font-size:13px;font-weight:600}
+.ai-header span{font-size:11px;color:var(--text-faint);background:var(--surface2);padding:2px 8px;border-radius:20px}
+.ai-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.75rem}
+.ai-chip{font-size:11.5px;padding:4px 10px;border:1px solid var(--border-strong);border-radius:20px;background:none;cursor:pointer;color:var(--text-muted);font-family:'DM Sans',sans-serif;transition:background .12s,color .12s}
+.ai-chip:hover{background:var(--surface2);color:var(--text)}
+.ai-input-row{display:flex;gap:8px}
+.ai-input-row textarea{flex:1;border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--bg);resize:none;outline:none;line-height:1.5}
+.ai-input-row textarea:focus{border-color:var(--accent)}
+.ai-input-row button{padding:0 18px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap}
+.ai-response{margin-top:.9rem;font-size:13px;line-height:1.65;color:var(--text);padding:.9rem 1rem;background:#f0f4ff;border-radius:var(--radius-sm);display:none;border-left:3px solid var(--accent);white-space:pre-wrap}
+.ai-setup{background:var(--surface2);border-radius:var(--radius-sm);padding:.75rem 1rem;font-size:12px;color:var(--text-muted);margin-bottom:.75rem}
+.ai-setup input{width:100%;margin-top:6px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:12px;font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);outline:none}
+.ai-setup input:focus{border-color:var(--accent)}
+/* Misc */
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--text-faint);font-size:13px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:10px}
+</style>
+</head>
+<body>
+<input type="file" id="file-input" accept=".xlsx,.xls,.csv" style="display:none">
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">PA <span>Analytics</span></div>
+    <button class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">▦</span> Overview</button>
+    <button class="nav-item" onclick="showPage('cases',this)"><span class="nav-icon">≡</span> Case log</button>
+    <button class="nav-item" onclick="showPage('ai',this)"><span class="nav-icon">✦</span> AI insights</button>
+    <div class="sidebar-section">Drill down</div>
+    <button class="nav-item" onclick="showPage('payers',this)"><span class="nav-icon">◈</span> By payer</button>
+    <button class="nav-item" onclick="showPage('medications',this)"><span class="nav-icon">◉</span> By medication</button>
+    <button class="nav-item" onclick="showPage('providers',this)"><span class="nav-icon">◎</span> By provider</button>
+    <button class="file-btn" onclick="document.getElementById('file-input').click()">⬆ Load Excel / CSV</button>
+    <div class="sync-status" id="sync-status">No file loaded</div>
+  </aside>
+
+  <main class="main">
+
+    <!-- OVERVIEW -->
+    <div class="page active" id="page-overview">
+      <div class="page-header"><h1>Overview</h1><p>Prior authorization analytics</p></div>
+      <div id="drop-zone" class="drop-zone" onclick="document.getElementById('file-input').click()">
+        <h3>Load your PA data</h3>
+        <p>Export your SharePoint list to Excel, then load it here.<br>All processing happens locally — nothing is uploaded.</p>
+        <button class="drop-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">⬆ Choose Excel or CSV file</button>
+        <div class="col-hint">
+          Supported columns: <strong>Title</strong> (patient) · <strong>Insurance</strong> (payer) · <strong>PA Status</strong> · <strong>Urgency</strong> (priority)<br>
+          <strong>Medication</strong> · <strong>Order Provider</strong> · <strong>Due</strong> · <strong>Decision Date</strong> · <strong>Note</strong> · <strong>Created</strong>
+        </div>
+      </div>
+      <div id="overview-content" style="display:none">
+        <div class="metrics">
+          <div class="metric"><div class="metric-label">Total</div><div class="metric-value" id="m-total">—</div><div class="metric-sub">all requests</div></div>
+          <div class="metric approved"><div class="metric-label">Approved</div><div class="metric-value" id="m-approved">—</div><div class="metric-sub" id="m-approved-pct"></div></div>
+          <div class="metric denied"><div class="metric-label">Denied</div><div class="metric-value" id="m-denied">—</div><div class="metric-sub" id="m-denied-pct"></div></div>
+          <div class="metric pending"><div class="metric-label">Pending / review</div><div class="metric-value" id="m-pending">—</div><div class="metric-sub" id="m-pending-pct"></div></div>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-card"><div class="chart-title">Status breakdown</div><div class="legend" id="leg-status"></div><div style="position:relative;height:180px"><canvas id="cStatus"></canvas></div></div>
+          <div class="chart-card"><div class="chart-title">Submissions over time</div><div class="legend" id="leg-time"></div><div style="position:relative;height:180px"><canvas id="cTime"></canvas></div></div>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-card"><div class="chart-title">By urgency</div><div class="legend" id="leg-priority"></div><div style="position:relative;height:160px"><canvas id="cPriority"></canvas></div></div>
+          <div class="chart-card"><div class="chart-title">Top payers</div><div class="legend" id="leg-payer-ov"></div><div style="position:relative;height:160px"><canvas id="cPayerOv"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CASES -->
+    <div class="page" id="page-cases">
+      <div class="page-header"><h1>Case log</h1><p>All prior authorization requests</p></div>
+      <div id="cases-empty" class="empty-state">Load an Excel or CSV file to view cases.</div>
+      <div id="cases-content" style="display:none">
+        <div class="filters">
+          <label>Filter</label>
+          <select id="f-status" onchange="applyFilters()"><option value="">All statuses</option></select>
+          <select id="f-payer" onchange="applyFilters()"><option value="">All payers</option></select>
+          <select id="f-priority" onchange="applyFilters()"><option value="">All urgencies</option></select>
+          <select id="f-provider" onchange="applyFilters()"><option value="">All providers</option></select>
+          <input id="f-search" type="text" placeholder="Search patient…" oninput="applyFilters()">
+          <button class="btn-clear" onclick="clearFilters()">Clear</button>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><h3>Cases</h3><span id="case-count"></span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Patient</th><th>Insurance</th><th>Provider</th><th>Medication</th><th>PA Status</th><th>Urgency</th><th>Due</th><th>Decision Date</th><th>Assigned To</th></tr></thead>
+              <tbody id="case-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI -->
+    <div class="page" id="page-ai">
+      <div class="page-header"><h1>AI insights</h1><p>Ask questions about your PA data in plain English</p></div>
+      <div class="ai-card">
+        <div class="ai-header"><h3>Ask about your data</h3><span>powered by DeepSeek</span></div>
+        <div class="ai-setup">
+          Enter your DeepSeek API key to enable AI insights. Get one at <strong>platform.deepseek.com/api-keys</strong>
+          <input type="password" id="deepseek-key" placeholder="sk-..." oninput="localStorage.setItem('ds_key',this.value)">
+        </div>
+        <div class="ai-chips">
+          <button class="ai-chip" onclick="setQ('Which payer has the most denials?')">Most denials by payer?</button>
+          <button class="ai-chip" onclick="setQ('What are the highest urgency pending cases?')">Highest urgency pending?</button>
+          <button class="ai-chip" onclick="setQ('Which medications are most commonly requested?')">Top medications?</button>
+          <button class="ai-chip" onclick="setQ('Which provider has the most open cases?')">Most open cases by provider?</button>
+          <button class="ai-chip" onclick="setQ('Summarize the overall state of our PA pipeline.')">Pipeline summary?</button>
+          <button class="ai-chip" onclick="setQ('Which cases are overdue?')">Overdue cases?</button>
+        </div>
+        <div class="ai-input-row">
+          <textarea id="ai-q" rows="2" placeholder="Load a file first, then ask anything…"></textarea>
+          <button onclick="askAI()">Ask →</button>
+        </div>
+        <div class="ai-response" id="ai-resp"></div>
+      </div>
+    </div>
+
+    <!-- PAYERS -->
+    <div class="page" id="page-payers">
+      <div class="page-header"><h1>By payer</h1><p>Volume and approval rates per insurance</p></div>
+      <div id="payers-empty" class="empty-state">Load a file to see payer analytics.</div>
+      <div id="payers-content" style="display:none">
+        <div class="chart-card" style="margin-bottom:14px"><div class="chart-title">Total requests by payer</div><div class="legend" id="leg-payer-full"></div><div style="position:relative;height:260px"><canvas id="cPayerFull"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">Approved vs denied by payer</div><div class="legend" id="leg-payer-stacked"></div><div style="position:relative;height:260px"><canvas id="cPayerStacked"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- MEDICATIONS -->
+    <div class="page" id="page-medications">
+      <div class="page-header"><h1>By medication</h1><p>Most requested medications</p></div>
+      <div id="meds-empty" class="empty-state">Load a file to see medication analytics.</div>
+      <div id="meds-content" style="display:none">
+        <div class="chart-card"><div class="chart-title">Top medications requested</div><div class="legend" id="leg-med"></div><div id="med-chart-wrap" style="position:relative;height:300px"><canvas id="cMed"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PROVIDERS -->
+    <div class="page" id="page-providers">
+      <div class="page-header"><h1>By provider</h1><p>Case volume per provider</p></div>
+      <div id="provs-empty" class="empty-state">Load a file to see provider analytics.</div>
+      <div id="provs-content" style="display:none">
+        <div class="chart-card"><div class="chart-title">Cases by provider</div><div class="legend" id="leg-prov"></div><div id="prov-chart-wrap" style="position:relative;height:300px"><canvas id="cProv"></canvas></div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const PAL=["#2563eb","#16a34a","#dc2626","#9333ea","#ea580c","#0891b2","#65a30d","#db2777","#6366f1","#ca8a04"];
+let allData=[],filtered=[],charts={};
+
+// ── Column mapping: SharePoint/Excel column names → internal field names ──
+const COL_MAP = {
+  // Patient
+  "title":"patient","patient":"patient","name":"patient",
+  // Insurance / Payer
+  "insurance":"payer","payer":"payer","insurance id":"payer","insuranceid":"payer",
+  // Status
+  "pa status":"status","status":"status","pa_status":"status",
+  // Priority / Urgency
+  "urgency":"priority","priority":"priority",
+  // Medication
+  "medication":"medications","medications":"medications","drug":"medications",
+  // Provider
+  "order provider":"provider","provider":"provider","orderprovider":"provider","ordering provider":"provider",
+  // Assigned To
+  "assigned to":"assigned_to","assignedto":"assigned_to","assigned_to":"assigned_to","created by":"assigned_to",
+  // Due date
+  "due":"due_date","due date":"due_date","due_date":"due_date",
+  // Decision date
+  "decision date":"decision_date","decisiondate":"decision_date","decision_date":"decision_date",
+  // Notes
+  "note":"notes","notes":"notes",
+  // Created / submitted
+  "created":"created_at","created_at":"created_at","submitted":"submitted","date submitted":"submitted",
+  // DOB
+  "dob":"dob","date of birth":"dob",
+  // Office
+  "office":"office","location":"office","site":"office",
+  // Item Type / Path (SharePoint metadata — ignored)
+  "item type":"__skip","path":"__skip","id":"__skip"
+};
+
+function mapRow(raw) {
+  const out = {};
+  for (const [col, val] of Object.entries(raw)) {
+    const key = COL_MAP[col.toLowerCase().trim()];
+    if (!key || key === "__skip") continue;
+    out[key] = val === null || val === undefined ? "" : String(val).trim();
+  }
+  return out;
+}
+
+// ── File loading ──
+function setupFileInput() {
+  const input = document.getElementById("file-input");
+  input.addEventListener("change", e => { if(e.target.files[0]) loadFile(e.target.files[0]); input.value=""; });
+
+  const dz = document.getElementById("drop-zone");
+  dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("dragover"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+  dz.addEventListener("drop", e => { e.preventDefault(); dz.classList.remove("dragover"); if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+}
+
+function loadFile(file) {
+  document.getElementById("sync-status").textContent = "Reading…";
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:"array", cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:""});
+      allData = rows.map(mapRow).filter(r => Object.keys(r).length > 0);
+      filtered = [...allData];
+      document.getElementById("sync-status").textContent = `${allData.length} records · ${file.name}`;
+      document.getElementById("drop-zone").style.display = "none";
+      document.getElementById("overview-content").style.display = "block";
+      ["cases","payers","meds","provs"].forEach(p => {
+        document.getElementById(p+"-empty").style.display = "none";
+        document.getElementById(p+"-content").style.display = "block";
+      });
+      initFilters();
+      renderOverview();
+      renderCaseTable();
+    } catch(err) {
+      document.getElementById("sync-status").textContent = "Error: " + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Helpers ──
+function statusBadge(s){const sl=(s||"").toLowerCase(),cls=sl.includes("approv")?"approved":sl.includes("den")?"denied":sl.includes("review")?"review":"pending";return `<span class="badge ${cls}">${s||"—"}</span>`}
+function priorityBadge(p){const pl=(p||"").toLowerCase(),cls=pl==="urgent"?"urgent":pl==="high"?"high":pl==="normal"||pl==="medium"||pl==="routine"?"normal":"low";return `<span class="badge ${cls}">${p||"—"}</span>`}
+function countBy(arr,fn){const m={};arr.forEach(d=>{const v=fn(d)||"Unknown";m[v]=(m[v]||0)+1;});return m}
+function makeLegend(id,labels,colors,vals){document.getElementById(id).innerHTML=labels.map((l,i)=>`<span><span class="lsq" style="background:${colors[i%colors.length]}"></span>${l}${vals?": "+vals[i]:""}</span>`).join("")}
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function parseMeds(d){return (Array.isArray(d.medications)?d.medications:(d.medications?[d.medications]:[])).flatMap(m=>String(m).split(/;+/).map(x=>x.trim()).filter(x=>x&&!/^[#\d\s\-\.]+$/.test(x)));}
+
+// ── Navigation ──
+function showPage(name,btn){
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  document.getElementById("page-"+name).classList.add("active");
+  if(btn)btn.classList.add("active");
+  if(allData.length&&!["overview","cases","ai"].includes(name))setTimeout(()=>renderPageCharts(name),50);
+}
+
+// ── Filters ──
+function initFilters(){
+  function populate(id,vals){const el=document.getElementById(id);el.innerHTML=el.options[0].outerHTML;[...new Set(vals.filter(Boolean).sort())].forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;el.appendChild(o);});}
+  populate("f-status",allData.map(d=>d.status));
+  populate("f-payer",allData.map(d=>d.payer));
+  populate("f-priority",allData.map(d=>d.priority));
+  populate("f-provider",allData.map(d=>d.provider));
+}
+function applyFilters(){
+  const fS=document.getElementById("f-status").value,fP=document.getElementById("f-payer").value,fPr=document.getElementById("f-priority").value,fProv=document.getElementById("f-provider").value,fSr=(document.getElementById("f-search").value||"").toLowerCase();
+  filtered=allData.filter(d=>{
+    if(fS&&d.status!==fS)return false;
+    if(fP&&d.payer!==fP)return false;
+    if(fPr&&d.priority!==fPr)return false;
+    if(fProv&&d.provider!==fProv)return false;
+    if(fSr&&!(d.patient||"").toLowerCase().includes(fSr))return false;
+    return true;
+  });
+  renderCaseTable();
+}
+function clearFilters(){["f-status","f-payer","f-priority","f-provider"].forEach(id=>document.getElementById(id).value="");document.getElementById("f-search").value="";filtered=[...allData];renderCaseTable();}
+
+// ── Overview charts ──
+function renderOverview(){
+  const T=allData.length||1;
+  const approved=allData.filter(d=>(d.status||"").toLowerCase().includes("approv")).length;
+  const denied=allData.filter(d=>(d.status||"").toLowerCase().includes("den")).length;
+  const pending=allData.length-approved-denied;
+  document.getElementById("m-total").textContent=allData.length;
+  document.getElementById("m-approved").textContent=approved;document.getElementById("m-approved-pct").textContent=Math.round(approved/T*100)+"% of total";
+  document.getElementById("m-denied").textContent=denied;document.getElementById("m-denied-pct").textContent=Math.round(denied/T*100)+"% of total";
+  document.getElementById("m-pending").textContent=pending;document.getElementById("m-pending-pct").textContent=Math.round(pending/T*100)+"% of total";
+
+  const statusMap=countBy(allData,d=>d.status),sLabels=Object.keys(statusMap),sVals=sLabels.map(k=>statusMap[k]);
+  const sColors=sLabels.map(l=>{const ll=l.toLowerCase();return ll.includes("approv")?"#16a34a":ll.includes("den")?"#dc2626":ll.includes("review")?"#2563eb":"#ca8a04";});
+  dc("cStatus");makeLegend("leg-status",sLabels,sColors,sVals);
+  charts["cStatus"]=new Chart(document.getElementById("cStatus"),{type:"doughnut",data:{labels:sLabels,datasets:[{data:sVals,backgroundColor:sColors,borderWidth:2,borderColor:"#fff"}]},options:{responsive:true,maintainAspectRatio:false,cutout:"60%",plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>" "+c.label+": "+c.parsed}}}}});
+
+  // Use created_at or submitted for timeline
+  const byMonth={};
+  allData.forEach(d=>{
+    const raw=d.created_at||d.submitted||"";
+    if(!raw)return;
+    let m;
+    const d2=new Date(raw);
+    if(!isNaN(d2)){
+      m=d2.getFullYear()+"-"+String(d2.getMonth()+1).padStart(2,"0")+"-"+String(d2.getDate()).padStart(2,"0");
+    } else {
+      m=String(raw).slice(0,7);
+    }
+    if(/^\d{4}-\d{2}/.test(m))byMonth[m]=(byMonth[m]||0)+1;
+  });
+  // Fill gaps to make x-axis continuous
+  const allDays=Object.keys(byMonth).sort();
+  let tLabels=[],tVals=[];
+  if(allDays.length>=2){
+    const start=new Date(allDays[0]),end=new Date(allDays[allDays.length-1]);
+    for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+      const key=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+      tLabels.push(key);tVals.push(byMonth[key]||0);
+    }
+  } else {
+    tLabels=allDays;tVals=allDays.map(k=>byMonth[k]);
+  }
+  dc("cTime");makeLegend("leg-time",["Submissions"],["#2563eb"],null);
+  charts["cTime"]=new Chart(document.getElementById("cTime"),{type:"line",data:{labels:tLabels,datasets:[{data:tVals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.08)",pointBackgroundColor:"#2563eb",pointRadius:2,tension:.35,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{title:t=>t[0].label,label:c=>c.parsed.y+" submission"+(c.parsed.y!==1?"s":"")}}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:12}},y:{beginAtZero:true,ticks:{stepSize:1,font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}}}}});
+
+  const priMap=countBy(allData,d=>d.priority);
+  const priOrder=["Urgent","High","Normal","Routine","Medium","Low"];
+  const priLabels=[...priOrder.filter(k=>priMap[k]),...Object.keys(priMap).filter(k=>!priOrder.includes(k)&&priMap[k])];
+  const priVals=priLabels.map(k=>priMap[k]||0);
+  const priColors=priLabels.map(l=>{const ll=l.toLowerCase();return ll==="urgent"?"#dc2626":ll==="high"?"#ca8a04":ll==="normal"||ll==="routine"||ll==="medium"?"#16a34a":"#9ca3af";});
+  dc("cPriority");makeLegend("leg-priority",priLabels,priColors,priVals);
+  charts["cPriority"]=new Chart(document.getElementById("cPriority"),{type:"bar",data:{labels:priLabels,datasets:[{data:priVals,backgroundColor:priColors,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{beginAtZero:true,ticks:{stepSize:1,font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}}}}});
+
+  const payerMap=countBy(allData,d=>d.payer),payerLabels=Object.keys(payerMap).sort((a,b)=>payerMap[b]-payerMap[a]).slice(0,6),payerVals=payerLabels.map(k=>payerMap[k]);
+  dc("cPayerOv");makeLegend("leg-payer-ov",payerLabels,PAL,payerVals);
+  charts["cPayerOv"]=new Chart(document.getElementById("cPayerOv"),{type:"bar",data:{labels:payerLabels,datasets:[{data:payerVals,backgroundColor:payerLabels.map((_,i)=>PAL[i%PAL.length]),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:30}},y:{beginAtZero:true,ticks:{stepSize:1,font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}}}}});
+}
+
+// ── Case table ──
+function renderCaseTable(){
+  const d=filtered;
+  document.getElementById("case-count").textContent=d.length+" of "+allData.length+" records";
+  const tbody=document.getElementById("case-tbody");tbody.innerHTML="";
+  if(!d.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:#a09f9a;padding:2rem">No cases match filters</td></tr>';return;}
+  d.slice(0,200).forEach(r=>{
+    const meds=parseMeds(r).join(", ")||"—";
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td title="${r.patient||""}">${r.patient||"—"}</td><td title="${r.payer||""}">${r.payer||"—"}</td><td title="${r.provider||""}">${r.provider||"—"}</td><td title="${meds}">${meds.length>26?meds.slice(0,24)+"…":meds}</td><td>${statusBadge(r.status)}</td><td>${priorityBadge(r.priority)}</td><td>${r.due_date||"—"}</td><td>${r.decision_date||"—"}</td><td>${r.assigned_to||"—"}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(d.length>200){const tr=document.createElement("tr");tr.innerHTML=`<td colspan="9" style="text-align:center;color:#a09f9a;font-size:12px;padding:10px">${d.length-200} more rows — use filters to narrow</td>`;tbody.appendChild(tr);}
+}
+
+// ── Drill-down charts ──
+function renderPageCharts(name){
+  if(name==="payers"){
+    const payerMap=countBy(allData,d=>d.payer),labels=Object.keys(payerMap).sort((a,b)=>payerMap[b]-payerMap[a]).slice(0,10),vals=labels.map(k=>payerMap[k]);
+    dc("cPayerFull");makeLegend("leg-payer-full",labels,PAL,vals);
+    charts["cPayerFull"]=new Chart(document.getElementById("cPayerFull"),{type:"bar",data:{labels,datasets:[{data:vals,backgroundColor:labels.map((_,i)=>PAL[i%PAL.length]),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11},maxRotation:30}},y:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}}}}});
+    const apprd={},denid={};
+    allData.forEach(d=>{const p=d.payer||"Unknown",sl=(d.status||"").toLowerCase();if(sl.includes("approv"))apprd[p]=(apprd[p]||0)+1;if(sl.includes("den"))denid[p]=(denid[p]||0)+1;});
+    dc("cPayerStacked");makeLegend("leg-payer-stacked",["Approved","Denied"],["#16a34a","#dc2626"],null);
+    charts["cPayerStacked"]=new Chart(document.getElementById("cPayerStacked"),{type:"bar",data:{labels,datasets:[{label:"Approved",data:labels.map(k=>apprd[k]||0),backgroundColor:"#16a34a",borderRadius:3},{label:"Denied",data:labels.map(k=>denid[k]||0),backgroundColor:"#dc2626",borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:11},maxRotation:30}},y:{stacked:true,beginAtZero:true,ticks:{font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}}}}});
+  }
+  if(name==="medications"){
+    const medMap={};allData.forEach(d=>{parseMeds(d).forEach(m=>{medMap[m]=(medMap[m]||0)+1;});});
+    const labels=Object.keys(medMap).sort((a,b)=>medMap[b]-medMap[a]).slice(0,15),vals=labels.map(k=>medMap[k]);
+    const h=Math.max(300,labels.length*36+60);document.getElementById("med-chart-wrap").style.height=h+"px";
+    dc("cMed");makeLegend("leg-med",["Requests"],["#2563eb"],null);
+    charts["cMed"]=new Chart(document.getElementById("cMed"),{type:"bar",data:{labels,datasets:[{data:vals,backgroundColor:"#2563eb",borderRadius:4}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  }
+  if(name==="providers"){
+    const provMap=countBy(allData,d=>d.provider),labels=Object.keys(provMap).sort((a,b)=>provMap[b]-provMap[a]).slice(0,15),vals=labels.map(k=>provMap[k]);
+    const h=Math.max(300,labels.length*36+60);document.getElementById("prov-chart-wrap").style.height=h+"px";
+    dc("cProv");makeLegend("leg-prov",["Cases"],["#9333ea"],null);
+    charts["cProv"]=new Chart(document.getElementById("cProv"),{type:"bar",data:{labels,datasets:[{data:vals,backgroundColor:"#9333ea",borderRadius:4}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{font:{size:10}},grid:{color:"rgba(0,0,0,.05)"}},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+  }
+}
+
+// ── AI insights (calls DeepSeek directly — works from local file) ──
+function setQ(q){document.getElementById("ai-q").value=q;document.getElementById("ai-q").focus();}
+
+async function askAI(){
+  const q=document.getElementById("ai-q").value.trim();if(!q)return;
+  const key=(document.getElementById("deepseek-key").value||localStorage.getItem("ds_key")||"").trim();
+  if(!key){alert("Please enter your DeepSeek API key above.");return;}
+  if(!allData.length){alert("Please load a file first.");return;}
+  const resp=document.getElementById("ai-resp");resp.style.display="block";resp.textContent="Thinking…";
+
+  const statusMap=countBy(allData,d=>d.status),payerMap=countBy(allData,d=>d.payer),priMap=countBy(allData,d=>d.priority),provMap=countBy(allData,d=>d.provider);
+  const medMap={};allData.forEach(d=>{parseMeds(d).forEach(m=>{medMap[m]=(medMap[m]||0)+1;});});
+  const today=new Date().toISOString().slice(0,10);
+  const overdue=allData.filter(d=>d.due_date&&d.due_date<today&&!(d.status||"").toLowerCase().includes("approv")&&!(d.status||"").toLowerCase().includes("den")).length;
+  const summary={total:allData.length,overdue,status_breakdown:statusMap,payer_breakdown:payerMap,urgency_breakdown:priMap,provider_breakdown:provMap,top_medications:Object.entries(medMap).sort((a,b)=>b[1]-a[1]).slice(0,10),recent_sample:allData.slice(0,8).map(d=>({patient:d.patient,payer:d.payer,status:d.status,urgency:d.priority,medications:d.medications,due_date:d.due_date,assigned_to:d.assigned_to,notes:d.notes}))};
+
+  try{
+    const res=await fetch("https://api.deepseek.com/chat/completions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"deepseek-chat",max_tokens:1000,messages:[
+        {role:"system",content:`You are a prior authorization analytics assistant for a medical office. Data is from a SharePoint PA tracking list. Be concise, specific, and actionable — cite real numbers. Today is ${today}. Data summary: ${JSON.stringify(summary)}`},
+        {role:"user",content:q}
+      ]})
+    });
+    const data=await res.json();
+    if(data.error)throw new Error(typeof data.error==="string"?data.error:JSON.stringify(data.error));
+    resp.textContent=data.choices?.[0]?.message?.content||"No response.";
+  }catch(e){resp.textContent="Error: "+e.message;}
+}
+
+document.getElementById("ai-q").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();askAI();}});
+
+// Restore saved DeepSeek key
+const savedKey=localStorage.getItem("ds_key");
+if(savedKey)document.getElementById("deepseek-key").value=savedKey;
+
+setupFileInput();
+</script>
+</body>
+</html>
